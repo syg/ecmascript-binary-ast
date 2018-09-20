@@ -26,15 +26,26 @@ contributors: Shu-yu Guo, David Teller, Ecma International
   <p>This section is derived from <a href="https://github.com/shapesecurity/shift-spec/blob/es2017/spec.idl">Shift AST Spec</a> and parts are Copyright 2014-2017 Shape Security, Inc.</p>
   <p>Unlike the Shift AST spec, interface types are not used to inherit fields to control over ordering of fields. Type hierarchies that are not used to discriminate are collapsed to make space costs simple. Nor are they used to discriminate types, for which explicitly discriminated unions types are used.</p>
   <emu-note>Whereas Shift AST's design principle is ease of search-and-replace of node types, binary AST's design principle is ease of verification and ease of associating different behaviors with syntactically different (but possibly lexically similar) productions.</emu-note>
-  <p>The grammar is presented in WebIDL with the `[TypeIndicator]` and `[NonEmpty]` extensions per Shift AST spec. The `[Lazy]` extension serves as a hint to the surface encoding that the `[Lazy]` attribute should be skippable in the byte stream in constant time. The `typedefs` of `or` types are to be read as recursive sum types. In text below, the "is a `Foo`" prose is shorthand for checking the node's `type` attribute being equal to `"Foo"`.</p>
+  <p>The grammar is presented in WebIDL with the `[TypeIndicator]` and `[NonEmpty]` extensions per Shift AST spec. The `[Lazy]` extension serves as a hint to the surface encoding that the `[Lazy]` attribute should be skippable in the byte stream in constant time.
+     The `[IdentifierName]` and `[PropertyKey]` extensions serve as hint to the surface encoding
+     and to tools to track the role of an `IdentifierName` and its use.
+     The `[Scope]` and `[AssertedScope]` extensions serve as a hint to the surface encoding and to tools to determine the scope
+     of identifier declarations, which may serve in turn e.g. for DeBruijn encodings, or to store debugging
+     information.
+     The `typedefs` of `or` types are to be read as recursive sum types. In text below, the "is a `Foo`" prose is shorthand for checking the node's `type` attribute being equal to `"Foo"`.</p>
 
   <pre><code class="language-webidl">
 // Type aliases and enums.
 
 typedef FrozenArray&lt;(SpreadElement or Expression)> Arguments;
 typedef DOMString string;
-typedef string Identifier;
-typedef string IdentifierName;
+
+// A name used to represent a variable.
+typedef [IdentifierName] string IdentifierName;
+
+// A name used to represent a property.
+typedef [PropertyKey] string PropertyKey;
+
 typedef string Label;
 
 enum VariableDeclarationKind {
@@ -141,27 +152,32 @@ interface AssertedBoundName {
   attribute boolean isCaptured;
 };
 
+[AssertedScope]
 interface AssertedBlockScope {
   attribute FrozenArray&lt;AssertedDeclaredName&gt; declaredNames;
   attribute boolean hasDirectEval;
 };
 
+[AssertedScope]
 interface AssertedScriptGlobalScope {
   attribute FrozenArray&lt;AssertedDeclaredName&gt; declaredNames;
   attribute boolean hasDirectEval;
 };
 
+[AssertedScope]
 interface AssertedVarScope {
   attribute FrozenArray&lt;AssertedDeclaredName&gt; declaredNames;
   attribute boolean hasDirectEval;
 };
 
+[AssertedScope]
 interface AssertedParameterScope {
   attribute FrozenArray<AssertedMaybePositionalParameterName> paramNames;
   attribute boolean hasDirectEval;
   attribute boolean isSimpleParameterList;
 };
 
+[AssertedScope]
 interface AssertedBoundNamesScope {
   attribute FrozenArray&lt;AssertedBoundName&gt; boundNames;
   attribute boolean hasDirectEval;
@@ -276,7 +292,7 @@ typedef (EagerArrowExpressionWithFunctionBody or
 // bindings
 
 interface BindingIdentifier : Node {
-  attribute Identifier name;
+  attribute IdentifierName name;
 };
 
 typedef (ObjectBinding or
@@ -309,7 +325,7 @@ interface BindingWithInitializer : Node {
 };
 
 interface AssignmentTargetIdentifier : Node {
-  attribute Identifier name;
+  attribute IdentifierName name;
 };
 
 interface ComputedMemberAssignmentTarget : Node {
@@ -323,7 +339,7 @@ interface StaticMemberAssignmentTarget : Node {
   // The object whose property is being assigned.
   attribute (Expression or Super) _object;
   // The name of the property to be accessed.
-  attribute IdentifierName property;
+  attribute PropertyKey property;
 };
 
 // `ArrayBindingPattern`
@@ -412,6 +428,7 @@ interface ClassElement : Node {
 
 // modules
 
+[Scope]
 interface Module : Node {
   attribute AssertedVarScope scope;
   attribute FrozenArray&lt;Directive&gt; directives;
@@ -437,7 +454,7 @@ interface ImportNamespace : Node {
 interface ImportSpecifier : Node {
   // The `IdentifierName` in the production `ImportSpecifier :: IdentifierName as ImportedBinding`;
   // absent if this specifier represents the production `ImportSpecifier :: ImportedBinding`.
-  attribute IdentifierName? name;
+  attribute PropertyKey? name;
   attribute BindingIdentifier binding;
 };
 
@@ -473,10 +490,10 @@ interface ExportDefault : Node {
 interface ExportFromSpecifier : Node {
   // The only `IdentifierName in `ExportSpecifier :: IdentifierName`,
   // or the first in `ExportSpecifier :: IdentifierName as IdentifierName`.
-  attribute IdentifierName name;
+  attribute PropertyKey name;
   // The second `IdentifierName` in `ExportSpecifier :: IdentifierName as IdentifierName`,
   // if that is the production represented.
-  attribute IdentifierName? exportedName;
+  attribute PropertyKey? exportedName;
 };
 
 // `ExportSpecifier`, as part of an `ExportLocals`.
@@ -485,7 +502,7 @@ interface ExportLocalSpecifier : Node {
   // or the first in `ExportSpecifier :: IdentifierName as IdentifierName`.
   attribute IdentifierExpression name;
   // The second `IdentifierName` in `ExportSpecifier :: IdentifierName as IdentifierName`, if present.
-  attribute IdentifierName? exportedName;
+  attribute PropertyKey? exportedName;
 };
 
 
@@ -494,6 +511,7 @@ interface ExportLocalSpecifier : Node {
 // `MethodDefinition :: PropertyName ( UniqueFormalParameters ) { FunctionBody }`,
 // `GeneratorMethod :: * PropertyName ( UniqueFormalParameters ) { GeneratorBody }`,
 // `AsyncMethod :: async PropertyName ( UniqueFormalParameters ) { AsyncFunctionBody }`
+[Scope]
 interface EagerMethod : Node {
   attribute boolean isAsync;
   attribute boolean isGenerator;
@@ -512,6 +530,7 @@ interface LazyMethod : Node {
 };
 
 // `get PropertyName ( ) { FunctionBody }`
+[Scope]
 interface EagerGetter : Node {
   attribute PropertyName name;
   attribute FrozenArray&lt;Directive&gt; directives;
@@ -530,6 +549,7 @@ interface GetterContents : Node {
 };
 
 // `set PropertyName ( PropertySetParameterList ) { FunctionBody }`
+[Scope]
 interface EagerSetter : Node {
   attribute PropertyName name;
   attribute unsigned long length;
@@ -640,14 +660,14 @@ interface LazyArrowExpressionWithExpression : Node {
   attribute unsigned long length;
   [Lazy] attribute ArrowExpressionContentsWithExpression contents;
 };
-
+[Scope]
 interface ArrowExpressionContentsWithFunctionBody : Node {
   attribute AssertedParameterScope parameterScope;
   attribute FormalParameters params;
   attribute AssertedVarScope bodyScope;
   attribute FunctionBody body;
 };
-
+[Scope]
 interface ArrowExpressionContentsWithExpression : Node {
   attribute AssertedParameterScope parameterScope;
   attribute FormalParameters params;
@@ -716,6 +736,7 @@ interface ConditionalExpression : Node {
 // `FunctionExpression`,
 // `GeneratorExpression`,
 // `AsyncFunctionExpression`,
+[Scope]
 interface EagerFunctionExpression : Node {
   attribute boolean isAsync;
   attribute boolean isGenerator;
@@ -733,6 +754,7 @@ interface LazyFunctionExpression : Node {
   [Lazy] attribute FunctionExpressionContents contents;
 };
 
+[Scope]
 interface FunctionExpressionContents : Node {
   attribute boolean isFunctionNameCaptured;
   attribute boolean isThisCaptured;
@@ -744,7 +766,7 @@ interface FunctionExpressionContents : Node {
 
 // `IdentifierReference`
 interface IdentifierExpression : Node {
-  attribute Identifier name;
+  attribute IdentifierName name;
 };
 
 interface NewExpression : Node {
@@ -767,7 +789,7 @@ interface StaticMemberExpression : Node {
   // The object whose property is being accessed.
   attribute (Expression or Super) _object;
   // The name of the property to be accessed.
-  attribute IdentifierName property;
+  attribute PropertyKey property;
 };
 
 // `TemplateLiteral`,
@@ -948,13 +970,14 @@ interface WithStatement : Node {
 
 
 // other nodes
-
+[Scope]
 interface Block : Node {
   attribute AssertedBlockScope scope;
   attribute FrozenArray&lt;Statement&gt; statements;
 };
 
 // `Catch`
+[Scope]
 interface CatchClause : Node {
   attribute AssertedBoundNamesScope bindingScope;
   attribute Binding binding;
@@ -978,6 +1001,7 @@ typedef FrozenArray&lt;Statement&gt; FunctionBody;
 // `FunctionDeclaration`,
 // `GeneratorDeclaration`,
 // `AsyncFunctionDeclaration`
+[Scope]
 interface EagerFunctionDeclaration : Node {
   attribute boolean isAsync;
   attribute boolean isGenerator;
@@ -996,6 +1020,7 @@ interface LazyFunctionDeclaration : Node {
   [Lazy] attribute FunctionOrMethodContents contents;
 };
 
+[Scope]
 interface FunctionOrMethodContents : Node {
   attribute boolean isThisCaptured;
   attribute AssertedParameterScope parameterScope;
@@ -1004,7 +1029,7 @@ interface FunctionOrMethodContents : Node {
   attribute FunctionBody body;
 };
 
-
+[Scope]
 interface Script : Node {
   attribute AssertedScriptGlobalScope scope;
   attribute FrozenArray&lt;Directive&gt; directives;
@@ -1622,7 +1647,7 @@ interface VariableDeclarator : Node {
   <emu-clause id="sec-identifierecmaify" aoid="IdentifierEcmaify">
     <h1>IdentifierEcmaify ( _ident_ )</h1>
     <emu-alg>
-      1. Assert: _ident_ is an `Identifier` or an `IdentifierName`.
+      1. Assert: _ident_ is an `IdentifierName` or a `PropertyKey`.
       1. NOTE: The full tree of identifiers is elided here and left as an exercise to the reader.
       1. If _ident_ is the empty string, throw a *SyntaxError* exception.
       1. Return |Identifier| : _ident_.
@@ -2866,7 +2891,7 @@ interface VariableDeclarator : Node {
     <h1>Assertions</h1>
     <p>Evaluation of binary AST is possibly lazy at function boundaries. Together with `AssertedScope`, the intent is to allow implementations to start to start code generation without parsing the entire tree. `AssertedScope` represent assertions that must be checked. A failing assertion throws a *SyntaxError* exception.</p>
     <p>Asserted declared names must match exactly the set of actual declared names exactly in the scope. The asserted captured names in the scope must be a superset of observed captured names. If the presence of direct eval is asserted to be *false*, then a direct eval must not be observed in the scope. If the presence of direct eval is asserted to be *true*, a direct eval is allowed to not be observed (i.e. it is conservative).</p>
-    <emu-note>While asserte scopes are optional, an implementation is prohibited from binding optimizations if they are absent.</emu-note>
+    <emu-note>While asserted scopes are optional, an implementation is prohibited from binding optimizations if they are absent.</emu-note>
 
     <p>The <dfn id="globalassertedscopetree">GlobalAssertedScopeTree</dfn> is a List that is globally available. It is shared by all realms. Prior to the evaluation of any ECMAScript code it is initialized as a new empty List. Elements of the GlobalAssertedScopeTree are Records with the structure defined in <emu-xref href="#table-assertedscopetreenode" title></emu-xref>.</p>
 
@@ -3418,9 +3443,9 @@ interface VariableDeclarator : Node {
           1. Return the RestParameterName of |BindingIdentifier|.
         </emu-alg>
 
-        <emu-grammar>FormalParameter : Identifier</emu-grammar>
+        <emu-grammar>FormalParameter : IdentifierReference</emu-grammar>
         <emu-alg>
-          1. Return the StringValue of |Identifier|.
+          1. Return the StringValue of |IdentifierReference|.
         </emu-alg>
 
         <emu-grammar>FormalParameter : `yield`</emu-grammar>

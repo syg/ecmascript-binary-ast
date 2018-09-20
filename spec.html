@@ -26,15 +26,30 @@ contributors: Shu-yu Guo, David Teller, Ecma International
   <p>This section is derived from <a href="https://github.com/shapesecurity/shift-spec/blob/es2017/spec.idl">Shift AST Spec</a> and parts are Copyright 2014-2017 Shape Security, Inc.</p>
   <p>Unlike the Shift AST spec, interface types are not used to inherit fields to control over ordering of fields. Type hierarchies that are not used to discriminate are collapsed to make space costs simple. Nor are they used to discriminate types, for which explicitly discriminated unions types are used.</p>
   <emu-note>Whereas Shift AST's design principle is ease of search-and-replace of node types, binary AST's design principle is ease of verification and ease of associating different behaviors with syntactically different (but possibly lexically similar) productions.</emu-note>
-  <p>The grammar is presented in WebIDL with the `[TypeIndicator]` and `[NonEmpty]` extensions per Shift AST spec. The `[Lazy]` extension serves as a hint to the surface encoding that the `[Lazy]` attribute should be skippable in the byte stream in constant time. The `typedefs` of `or` types are to be read as recursive sum types. In text below, the "is a `Foo`" prose is shorthand for checking the node's `type` attribute being equal to `"Foo"`.</p>
+  <p>The grammar is presented in WebIDL with the `[TypeIndicator]` and `[NonEmpty]` extensions per Shift AST spec. The `[Lazy]` extension serves as a hint to the surface encoding that the `[Lazy]` attribute should be skippable in the byte stream in constant time.
+     The `[IdentifierDeclaration]`, `[IdentifierReference]` and `[PropertyName]` extensions serve as hint to the surface encoding
+     and to tools to track the role of an `IdentifierName` and its use.
+     The `[Scope]` extension serves as a hint to the surface encoding and to tools to determine the scope
+     of identifier declarations, which may serve in turn e.g. for DeBruijn encodings, or to store debugging
+     information.
+     The `typedefs` of `or` types are to be read as recursive sum types. In text below, the "is a `Foo`" prose is shorthand for checking the node's `type` attribute being equal to `"Foo"`.</p>
 
   <pre><code class="language-webidl">
 // Type aliases and enums.
 
 typedef FrozenArray&lt;(SpreadElement or Expression)> Arguments;
 typedef DOMString string;
-typedef string Identifier;
-typedef string IdentifierName;
+
+// The name used to declare an identifier.
+typedef [IdentifierDeclaration] string IdentifierDeclaration;
+
+// A reference to an identifier that has either been declared
+// as a `IdentifierDeclaration` or is global.
+typedef [IdentifierReference] string IdentifierReference;
+
+// A name for a property.
+typedef [PropertyName] string PropertyName;
+
 typedef string Label;
 
 enum VariableDeclarationKind {
@@ -110,24 +125,24 @@ enum AssertedDeclaredKind {
 // deferred assertions
 
 interface AssertedDeclaredName {
-  attribute IdentifierName name;
+  attribute IdentifierDeclaration name;
   attribute AssertedDeclaredKind kind;
   attribute boolean isCaptured;
 };
 
 interface AssertedPositionalParameterName {
   attribute unsigned long index;
-  attribute IdentifierName name;
+  attribute IdentifierDeclaration name;
   attribute boolean isCaptured;
 };
 
 interface AssertedRestParameterName {
-  attribute IdentifierName name;
+  attribute IdentifierDeclaration name;
   attribute boolean isCaptured;
 };
 
 interface AssertedParameterName {
-  attribute IdentifierName name;
+  attribute IdentifierDeclaration name;
   attribute boolean isCaptured;
 };
 
@@ -137,7 +152,7 @@ typedef (AssertedPositionalParameterName or
         AssertedMaybePositionalParameterName;
 
 interface AssertedBoundName {
-  attribute IdentifierName name;
+  attribute IdentifierDeclaration name;
   attribute boolean isCaptured;
 };
 
@@ -276,7 +291,7 @@ typedef (EagerArrowExpressionWithFunctionBody or
 // bindings
 
 interface BindingIdentifier : Node {
-  attribute Identifier name;
+  attribute IdentifierReference name;
 };
 
 typedef (ObjectBinding or
@@ -309,7 +324,7 @@ interface BindingWithInitializer : Node {
 };
 
 interface AssignmentTargetIdentifier : Node {
-  attribute Identifier name;
+  attribute IdentifierReference name;
 };
 
 interface ComputedMemberAssignmentTarget : Node {
@@ -323,7 +338,7 @@ interface StaticMemberAssignmentTarget : Node {
   // The object whose property is being assigned.
   attribute (Expression or Super) _object;
   // The name of the property to be accessed.
-  attribute IdentifierName property;
+  attribute PropertyName property;
 };
 
 // `ArrayBindingPattern`
@@ -412,6 +427,7 @@ interface ClassElement : Node {
 
 // modules
 
+[Scope]
 interface Module : Node {
   attribute AssertedVarScope scope;
   attribute FrozenArray&lt;Directive&gt; directives;
@@ -437,7 +453,7 @@ interface ImportNamespace : Node {
 interface ImportSpecifier : Node {
   // The `IdentifierName` in the production `ImportSpecifier :: IdentifierName as ImportedBinding`;
   // absent if this specifier represents the production `ImportSpecifier :: ImportedBinding`.
-  attribute IdentifierName? name;
+  attribute PropertyName? name;
   attribute BindingIdentifier binding;
 };
 
@@ -473,10 +489,10 @@ interface ExportDefault : Node {
 interface ExportFromSpecifier : Node {
   // The only `IdentifierName in `ExportSpecifier :: IdentifierName`,
   // or the first in `ExportSpecifier :: IdentifierName as IdentifierName`.
-  attribute IdentifierName name;
+  attribute PropertyName name;
   // The second `IdentifierName` in `ExportSpecifier :: IdentifierName as IdentifierName`,
   // if that is the production represented.
-  attribute IdentifierName? exportedName;
+  attribute PropertyName? exportedName;
 };
 
 // `ExportSpecifier`, as part of an `ExportLocals`.
@@ -485,7 +501,7 @@ interface ExportLocalSpecifier : Node {
   // or the first in `ExportSpecifier :: IdentifierName as IdentifierName`.
   attribute IdentifierExpression name;
   // The second `IdentifierName` in `ExportSpecifier :: IdentifierName as IdentifierName`, if present.
-  attribute IdentifierName? exportedName;
+  attribute PropertyName? exportedName;
 };
 
 
@@ -494,6 +510,7 @@ interface ExportLocalSpecifier : Node {
 // `MethodDefinition :: PropertyName ( UniqueFormalParameters ) { FunctionBody }`,
 // `GeneratorMethod :: * PropertyName ( UniqueFormalParameters ) { GeneratorBody }`,
 // `AsyncMethod :: async PropertyName ( UniqueFormalParameters ) { AsyncFunctionBody }`
+[Scope]
 interface EagerMethod : Node {
   attribute boolean isAsync;
   attribute boolean isGenerator;
@@ -512,6 +529,7 @@ interface LazyMethod : Node {
 };
 
 // `get PropertyName ( ) { FunctionBody }`
+[Scope]
 interface EagerGetter : Node {
   attribute PropertyName name;
   attribute FrozenArray&lt;Directive&gt; directives;
@@ -530,6 +548,7 @@ interface GetterContents : Node {
 };
 
 // `set PropertyName ( PropertySetParameterList ) { FunctionBody }`
+[Scope]
 interface EagerSetter : Node {
   attribute PropertyName name;
   attribute unsigned long length;
@@ -640,14 +659,14 @@ interface LazyArrowExpressionWithExpression : Node {
   attribute unsigned long length;
   [Lazy] attribute ArrowExpressionContentsWithExpression contents;
 };
-
+[Scope]
 interface ArrowExpressionContentsWithFunctionBody : Node {
   attribute AssertedParameterScope parameterScope;
   attribute FormalParameters params;
   attribute AssertedVarScope bodyScope;
   attribute FunctionBody body;
 };
-
+[Scope]
 interface ArrowExpressionContentsWithExpression : Node {
   attribute AssertedParameterScope parameterScope;
   attribute FormalParameters params;
@@ -716,6 +735,7 @@ interface ConditionalExpression : Node {
 // `FunctionExpression`,
 // `GeneratorExpression`,
 // `AsyncFunctionExpression`,
+[Scope]
 interface EagerFunctionExpression : Node {
   attribute boolean isAsync;
   attribute boolean isGenerator;
@@ -733,6 +753,7 @@ interface LazyFunctionExpression : Node {
   [Lazy] attribute FunctionExpressionContents contents;
 };
 
+[Scope]
 interface FunctionExpressionContents : Node {
   attribute boolean isFunctionNameCaptured;
   attribute boolean isThisCaptured;
@@ -744,7 +765,7 @@ interface FunctionExpressionContents : Node {
 
 // `IdentifierReference`
 interface IdentifierExpression : Node {
-  attribute Identifier name;
+  attribute IdentifierReference name;
 };
 
 interface NewExpression : Node {
@@ -767,7 +788,7 @@ interface StaticMemberExpression : Node {
   // The object whose property is being accessed.
   attribute (Expression or Super) _object;
   // The name of the property to be accessed.
-  attribute IdentifierName property;
+  attribute PropertyName property;
 };
 
 // `TemplateLiteral`,
@@ -948,13 +969,14 @@ interface WithStatement : Node {
 
 
 // other nodes
-
+[Scope]
 interface Block : Node {
   attribute AssertedBlockScope scope;
   attribute FrozenArray&lt;Statement&gt; statements;
 };
 
 // `Catch`
+[Scope]
 interface CatchClause : Node {
   attribute AssertedBoundNamesScope bindingScope;
   attribute Binding binding;
@@ -978,6 +1000,7 @@ typedef FrozenArray&lt;Statement&gt; FunctionBody;
 // `FunctionDeclaration`,
 // `GeneratorDeclaration`,
 // `AsyncFunctionDeclaration`
+[Scope]
 interface EagerFunctionDeclaration : Node {
   attribute boolean isAsync;
   attribute boolean isGenerator;
@@ -996,6 +1019,7 @@ interface LazyFunctionDeclaration : Node {
   [Lazy] attribute FunctionOrMethodContents contents;
 };
 
+[Scope]
 interface FunctionOrMethodContents : Node {
   attribute boolean isThisCaptured;
   attribute AssertedParameterScope parameterScope;
@@ -1004,7 +1028,7 @@ interface FunctionOrMethodContents : Node {
   attribute FunctionBody body;
 };
 
-
+[Scope]
 interface Script : Node {
   attribute AssertedScriptGlobalScope scope;
   attribute FrozenArray&lt;Directive&gt; directives;
@@ -1575,7 +1599,7 @@ interface VariableDeclarator : Node {
       1. NOTE: When a |PropertySetParameterList| tagged as being produced by a binary AST `Parameter` is evaluated at runtime, Ecmaify is run on the parameter at that time to delazify.
       1. TODO: |FormalParameter| needs an empty variant for tagging.
       1. If _maybeLazyNode_ is a `LazySetter`, then
-          1. Let _placeholder_ be |Identifier| : <emu-t>_</emu-t>.
+          1. Let _placeholder_ be |PropertyName| : <emu-t>_</emu-t>.
           1. Let _emptyPropSetParam0_ be |FormalParameter| : _placeholder_.
           1. Let _emptyPropSetParam_ be |PropertySetParameterList| : _emptyPropSetParam0_.
           1. Let _currentScope_ be the current asserted scope.
@@ -1622,7 +1646,7 @@ interface VariableDeclarator : Node {
   <emu-clause id="sec-identifierecmaify" aoid="IdentifierEcmaify">
     <h1>IdentifierEcmaify ( _ident_ )</h1>
     <emu-alg>
-      1. Assert: _ident_ is an `Identifier` or an `IdentifierName`.
+      1. Assert: _ident_ is an `IdentifierDefinition` or an `IdentifierReference` or a `PropertyName`.
       1. NOTE: The full tree of identifiers is elided here and left as an exercise to the reader.
       1. If _ident_ is the empty string, throw a *SyntaxError* exception.
       1. Return |Identifier| : _ident_.
@@ -3188,9 +3212,9 @@ interface VariableDeclarator : Node {
         <emu-alg>
           1. Return &laquo; `"await"` &raquo;.
         </emu-alg>
-        <emu-grammar>IdentifierReference : Identifier</emu-grammar>
+        <emu-grammar>IdentifierReference : IdentifierReference</emu-grammar>
         <emu-alg>
-          1. Return &laquo; StringValue of |Identifier| &raquo;.
+          1. Return &laquo; StringValue of |IdentifierReference| &raquo;.
         </emu-alg>
       </emu-clause>
 
@@ -3361,9 +3385,9 @@ interface VariableDeclarator : Node {
           1. Return the PositionalParameterNames of |BindingIdentifier|.
         </emu-alg>
 
-        <emu-grammar>FormalParameter : Identifier</emu-grammar>
+        <emu-grammar>FormalParameter : IdentifierReference</emu-grammar>
         <emu-alg>
-          1. Return a new List containing the StringValue of |Identifier|.
+          1. Return a new List containing the StringValue of |IdentifierReference|.
         </emu-alg>
 
         <emu-grammar>FormalParameter : `yield`</emu-grammar>
@@ -3418,9 +3442,9 @@ interface VariableDeclarator : Node {
           1. Return the RestParameterName of |BindingIdentifier|.
         </emu-alg>
 
-        <emu-grammar>FormalParameter : Identifier</emu-grammar>
+        <emu-grammar>FormalParameter : IdentifierReference</emu-grammar>
         <emu-alg>
-          1. Return the StringValue of |Identifier|.
+          1. Return the StringValue of |IdentifierReference|.
         </emu-alg>
 
         <emu-grammar>FormalParameter : `yield`</emu-grammar>

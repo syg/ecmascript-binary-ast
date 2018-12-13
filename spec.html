@@ -26,7 +26,14 @@ contributors: Shu-yu Guo, David Teller, Ecma International
   <p>This section is derived from <a href="https://github.com/shapesecurity/shift-spec/blob/es2017/spec.idl">Shift AST Spec</a> and parts are Copyright 2014-2017 Shape Security, Inc.</p>
   <p>Unlike the Shift AST spec, interface types are not used to inherit fields to control over ordering of fields. Type hierarchies that are not used to discriminate are collapsed to make space costs simple. Nor are they used to discriminate types, for which explicitly discriminated unions types are used.</p>
   <emu-note>Whereas Shift AST's design principle is ease of search-and-replace of node types, binary AST's design principle is ease of verification and ease of associating different behaviors with syntactically different (but possibly lexically similar) productions.</emu-note>
-  <p>The grammar is presented in WebIDL with the `[TypeIndicator]` and `[NonEmpty]` extensions per Shift AST spec. The `[Lazy]` extension serves as a hint to the surface encoding that the `[Lazy]` attribute should be skippable in the byte stream in constant time. The `typedefs` of `or` types are to be read as recursive sum types. In text below, the "is a `Foo`" prose is shorthand for checking the node's `type` attribute being equal to `"Foo"`.</p>
+  <p>The grammar is presented in WebIDL with the `[TypeIndicator]` and `[NonEmpty]` extensions per Shift AST spec, as well as the listed extensions below. </p>
+  <ul>
+    <li>The `[Lazy]` extension serves as a hint to the surface encoding that the `[Lazy]` attribute must be skippable in the byte stream in constant time.</li>
+    <li>The `[Linkable]` extension serves as a hint to the surface encoding that the `[Linkable]` attribute must be random accessible in the byte stream in constant time.</li>
+    <li>The `NodeLink` type corresponds to the set of opaque values interpretable by the surface encoding to seek to attributes that have the `[Linkable]` extension.</li>
+    <li>The `typedefs` of `or` types are to be read as recursive sum types.</li>
+    <li>The prose "is a `Foo`" is shorthand for checking the node's `type` attribute being equal to `"Foo"`.</li>
+  </ul>
 
   <pre><code class="language-webidl">
 // Type aliases and enums.
@@ -193,6 +200,7 @@ typedef (Block or
          EmptyStatement or
          ExpressionStatement or
          FunctionDeclaration or
+         LinkableFunctionDeclaration or
          IfStatement or
          IterationStatement or
          LabelledStatement or
@@ -217,6 +225,7 @@ typedef (Literal or
          LiteralRegExpExpression or
          ArrayExpression or
          ArrowExpression or
+         LinkableArrowExpression or
          AssignmentExpression or
          BinaryExpression or
          CallExpression or
@@ -225,6 +234,7 @@ typedef (Literal or
          ConditionalExpression or
          ClassExpression or
          FunctionExpression or
+         LinkableFunctionExpression or
          IdentifierExpression or
          NewExpression or
          NewTargetExpression or
@@ -243,7 +253,12 @@ typedef (ComputedPropertyName or
          LiteralPropertyName)
         PropertyName;
 
-typedef (Method or Getter or Setter) MethodDefinition;
+typedef (Method or
+         Getter or
+         Setter or
+         LinkableMethod or
+         LinkableGetter or
+         LinkableSetter) MethodDefinition;
 
 typedef (MethodDefinition or
          DataProperty or
@@ -462,14 +477,20 @@ interface ExportLocals : Node {
 
 // `export VariableStatement`, `export Declaration`
 interface Export : Node {
-  attribute (FunctionDeclaration or ClassDeclaration or VariableDeclaration) declaration;
+  attribute (FunctionDeclaration or
+             LinkableFunctionDeclaration or
+             ClassDeclaration or
+             VariableDeclaration) declaration;
 };
 
 // `export default HoistableDeclaration`,
 // `export default ClassDeclaration`,
 // `export default AssignmentExpression`
 interface ExportDefault : Node {
-  attribute (FunctionDeclaration or ClassDeclaration or Expression) body;
+  attribute (FunctionDeclaration or
+             LinkableFunctionDeclaration or
+             ClassDeclaration or
+             Expression) body;
 };
 
 // `ExportSpecifier`, as part of an `ExportFrom`.
@@ -513,7 +534,11 @@ interface LazyMethod : Node {
   // `length` property of this method.
   attribute unsigned long length;
   attribute FrozenArray&lt;Directive&gt; directives;
+  attribute FrozenArray&lt;NodeLink&gt; innerLazyFunctions;
   [Lazy] attribute FunctionOrMethodContents contents;
+};
+interface LinkableMethod : Node {
+  [Linkable] attribute Method method;
 };
 
 // `get PropertyName ( ) { FunctionBody }`
@@ -525,7 +550,11 @@ interface EagerGetter : Node {
 interface LazyGetter : Node {
   attribute PropertyName name;
   attribute FrozenArray&lt;Directive&gt; directives;
+  attribute FrozenArray&lt;NodeLink&gt; innerLazyFunctions;
   [Lazy] attribute GetterContents contents;
+};
+interface LinkableGetter : Node {
+  [Linkable] Getter getter;
 };
 
 interface GetterContents : Node {
@@ -547,7 +576,11 @@ interface LazySetter : Node {
   // `length` property of this setter function.
   attribute unsigned long length;
   attribute FrozenArray&lt;Directive&gt; directives;
+  attribute FrozenArray&lt;NodeLink&gt; innerLazyFunctions;
   [Lazy] attribute SetterContents contents;
+};
+interface LinkableSetter : Node {
+  [Linkable] attribute Setter setter;
 };
 
 interface SetterContents : Node {
@@ -635,6 +668,7 @@ interface LazyArrowExpressionWithFunctionBody : Node {
   // `length` property of this arrow function.
   attribute unsigned long length;
   attribute FrozenArray&lt;Directive&gt; directives;
+  attribute FrozenArray&lt;NodeLink&gt; innerLazyFunctions;
   [Lazy] attribute ArrowExpressionContentsWithFunctionBody contents;
 };
 interface EagerArrowExpressionWithExpression : Node {
@@ -649,7 +683,11 @@ interface LazyArrowExpressionWithExpression : Node {
   attribute boolean isAsync;
   // `length` property of this arrow function.
   attribute unsigned long length;
+  attribute FrozenArray&lt;NodeLink&gt; innerLazyFunctions;
   [Lazy] attribute ArrowExpressionContentsWithExpression contents;
+};
+interface LinkableArrowExpression : Node {
+  [Linkable] attribute ArrowExpression arrow;
 };
 
 interface ArrowExpressionContentsWithFunctionBody : Node {
@@ -743,7 +781,11 @@ interface LazyFunctionExpression : Node {
   // `length` property of this function.
   attribute unsigned long length;
   attribute FrozenArray&lt;Directive&gt; directives;
+  attribute FrozenArray&lt;NodeLink&gt; innerLazyFunctions;
   [Lazy] attribute FunctionExpressionContents contents;
+};
+interface LinkableFunctionExpression : Node {
+  [Linkable] attribute FunctionExpression fun;
 };
 
 interface FunctionExpressionContents : Node {
@@ -1000,7 +1042,6 @@ interface EagerFunctionDeclaration : Node {
   attribute FrozenArray&lt;Directive&gt; directives;
   attribute FunctionOrMethodContents contents;
 };
-
 interface LazyFunctionDeclaration : Node {
   attribute boolean isAsync;
   attribute boolean isGenerator;
@@ -1008,8 +1049,12 @@ interface LazyFunctionDeclaration : Node {
   // `length` property of this function.
   attribute unsigned long length;
   attribute FrozenArray&lt;Directive&gt; directives;
+  attribute FrozenArray&lt;NodeLink&gt; innerLazyFunctions;
   [Lazy] attribute FunctionOrMethodContents contents;
 };
+interface LinkableFunctionDeclaration : Node {
+  [Linkable] attribute FunctionDeclaration fun;
+}
 
 interface FunctionOrMethodContents : Node {
   attribute boolean isThisCaptured;
@@ -1096,7 +1141,7 @@ interface VariableDeclarator : Node {
           1. Let _emptyStmt_ be |StatementListItem| : |EmptyStatement|.
           1. Set _list_ to |StatementList| : _emptyStmt_.
       1. For each _stmt_ in _stmts_, do
-          1. If _stmt_ is a `FunctionDeclaration`, then
+          1. If _stmt_ is a `FunctionDeclaration` or a `LinkableFunctionDeclaration`, then
               1. Set _n_ to |HoistableDeclaration|: ? Ecmaify(_stmt_).
               1. Set _n_ to be |Declaration| : _n_.
           1. Else if _stmt_ an `ExpressionStatement` and _stmt_`.expression` is a `LiteralStringExpression`:
@@ -1307,7 +1352,7 @@ interface VariableDeclarator : Node {
     <emu-alg>
       1. Assert: _e_ is an `Expression`, an `AssignmentTarget`, or an `AssignmentTargetWithInitializer`.
       1. If _e_ is a `ThisExpression`, then return ? Ecmaify(_e_).
-      1. Else if _pn_ is an `IdentifierExpression`, a `Literal`, an `ArrayExpression`, an `ObjectExpression`, a `FunctionExpression`, a `ClassExpression`, a `LiteralRegExpExpression`, a `TemplateExpression`, an `AssignmentTargetIdentifier`, an `ArrayAssignmentExpression`, or an `ObjectAssignmentExpression`, then return |PrimaryExpression| : ? Ecmaify(_e_).
+      1. Else if _pn_ is an `IdentifierExpression`, a `Literal`, an `ArrayExpression`, an `ObjectExpression`, a `FunctionExpression`, a `LinkableFunctionExpression`, a `ClassExpression`, a `LiteralRegExpExpression`, a `TemplateExpression`, an `AssignmentTargetIdentifier`, an `ArrayAssignmentExpression`, or an `ObjectAssignmentExpression`, then return |PrimaryExpression| : ? Ecmaify(_e_).
       1. Else,
           1. Let _parenthesized_ be |ParenthesizedExpression| : <emu-t>(</emu-t> ? ExpressionEcmaify(_e_) <emu-t>)</emu-t>.
           1. Return |PrimaryExpression| : _parenthesized_.
@@ -1501,7 +1546,7 @@ interface VariableDeclarator : Node {
     <emu-alg>
       1. Assert: _e_ is an `Expression`, an `AssignmentTarget`, or an `AssignmentTargetWithInitializer`.
       1. If _e_ is an `AssignmentExpression`, a `CompoundAssignmentExpression`, or an `AssignmentTargetWithInitializer`, then return ? Ecmaify(_e_).
-      1. Else if _e_ is a `YieldExpression` or an `ArrowExpression`, then return |AssignmentExpression| : ? Ecmaify(_e_).
+      1. Else if _e_ is a `YieldExpression`, an `ArrowExpression`, or a `LinkableArrowExpression`, then return |AssignmentExpression| : ? Ecmaify(_e_).
       1. Else,
           1. Let _n_ be ? ConditionalExpressionEcmaify(_e_).
           1. Return |AssignmentExpression| : _n_.
@@ -2004,8 +2049,10 @@ interface VariableDeclarator : Node {
     <emu-alg>
       1. Assert _labelled_ is a `LabelledStatement`.
       1. Let _body_ be an empty Parse Node.
-      1. If _labelled_`.body` is a `FunctionDeclaration`, then
-          1. If _labelled_`.body.isAsync` is true or _labelled_`.body.isGenerator` is *true*, then throw a *SyntaxError* exception.
+      1. If _labelled_`.body` is a `FunctionDeclaration` or a `LinkableFunctionDeclaration`, then
+          1. Let _funNode_  be _labelled_`.body`.
+          1. If _funNode_ is a `LinkableFunctionDeclaration`, then set _funNode_ to _funNode_`.fun`.
+          1. If _funNode_`.isAsync` is true or _funNode_`.isGenerator` is *true*, then throw a *SyntaxError* exception.
           1. Set _body_ to ? Ecmaify(_labelled_`.body`).
       1. Else set _body_ to ? StatementEcmaify(_labelled_`.body`).
       1. Let _item_ be |LabelledItem| : _body_.
@@ -2785,6 +2832,7 @@ interface VariableDeclarator : Node {
       1. Else if _node_ is a `EmptyStatement`, then return ? EcmaifyEmptyStatement(_node_).
       1. Else if _node_ is a `ExpressionStatement`, then return ? EcmaifyExpressionStatement(_node_).
       1. Else if _node_ is a `FunctionDeclaration`, then return ? EcmaifyFunctionDeclaration(_node_).
+      1. Else if _node_ is a `LinkableFunctionDeclaration`, then return ? EcmaifyFunctionDeclaration(_node_`.fun`).
       1. Else if _node_ is a `IfStatement`, then return ? EcmaifyIfStatement(_node_).
       1. Else if _node_ is a `DoWhileStatement`, then return ? EcmaifyDoWhileStatement(_node_).
       1. Else if _node_ is a `ForInStatement`, then return ? EcmaifyForInStatement(_node_).
@@ -2808,6 +2856,7 @@ interface VariableDeclarator : Node {
       1. Else if _node_ is a `LiteralRegExpExpression`, then return ? EcmaifyLiteralRegExpExpression(_node_).
       1. Else if _node_ is a `ArrayExpression`, then return ? EcmaifyArrayExpression(_node_).
       1. Else if _node_ is a `ArrowExpression`, then return ? EcmaifyArrowExpression(_node_).
+      1. Else if _node_ is a `LinkableArrowExpression`, then return ? EcmaifyArrowExpression(_node_`.arrow`).
       1. Else if _node_ is a `AssignmentExpression`, then return ? EcmaifyAssignmentExpression(_node_).
       1. Else if _node_ is a `BinaryExpression`, then return ? EcmaifyBinaryExpression(_node_).
       1. Else if _node_ is a `CallExpression`, then return ? EcmaifyCallExpression(_node_).
@@ -2816,6 +2865,7 @@ interface VariableDeclarator : Node {
       1. Else if _node_ is a `ConditionalExpression`, then return ? EcmaifyConditionalExpression(_node_).
       1. Else if _node_ is a `ClassExpression`, then return ? EcmaifyClassExpression(_node_).
       1. Else if _node_ is a `FunctionExpression`, then return ? EcmaifyFunctionExpression(_node_).
+      1. Else if _node_ is a `LinkableFunctionExpression`, then return ? EcmaifyFunctionExpression(_node_`.fun`).
       1. Else if _node_ is a `IdentifierExpression`, then return ? EcmaifyIdentifierExpression(_node_).
       1. Else if _node_ is a `NewExpression`, then return ? EcmaifyNewExpression(_node_).
       1. Else if _node_ is a `NewTargetExpression`, then return ? EcmaifyNewTargetExpression(_node_).
@@ -2832,8 +2882,11 @@ interface VariableDeclarator : Node {
       1. Else if _node_ is a `LiteralPropertyName`, then return ? EcmaifyLiteralPropertyName(_node_).
       1. Else if _node_ is a `LiteralPropertyName`, then return ? EcmaifyLiteralPropertyName(_node_).
       1. Else if _node_ is a `Method`, then return ? EcmaifyMethod(_node_).
+      1. Else if _node_ is a `LinkableMethod`, then return ? EcmaifyMethod(_node_`.method`).
       1. Else if _node_ is a `Getter`, then return ? EcmaifyGetter(_node_).
+      1. Else if _node_ is a `LinkableGetter`, then return ? EcmaifyGetter(_node_`.getter`).
       1. Else if _node_ is a `Setter`, then return ? EcmaifySetter(_node_).
+      1. Else if _node_ is a `LinkableSetter`, then return ? EcmaifySetter(_node_`.setter`).
       1. Else if _node_ is a `DataProperty`, then return ? EcmaifyDataProperty(_node_).
       1. Else if _node_ is a `ShorthandProperty`, then return ? EcmaifyShorthandProperty(_node_).
       1. Else if _node_ is a `ExportAllFrom`, then return ? EcmaifyExportAllFrom(_node_).
@@ -3029,7 +3082,7 @@ interface VariableDeclarator : Node {
       </emu-alg>
     </emu-clause>
 
-    <emu-clause id="sec-checkboundnames" aoid="CheckBOundNames">
+    <emu-clause id="sec-checkboundnames" aoid="CheckBoundNames">
       <h1>CheckBoundNames ( _expectedBound_, _actualBound_ )</h1>
       <emu-alg>
         1. Let _unseen_ be a new empty List.
@@ -3039,6 +3092,25 @@ interface VariableDeclarator : Node {
             1. If _dn_ is not in _unseen_, then throw a *SyntaxError* exception.
             1. Remove _dn_ from _unseen_.
         1. If _unseen_ has length greater than 0, then throw a *SyntaxError* exception.
+      </emu-alg>
+    </emu-clause>
+
+    <emu-clause id="sec-checkinnerlazyfunctions" aoid="CheckInnerLazyFunctions">
+      <h1>CheckInnerLazyFunctions ( _funcNode_ )</h1>
+      <emu-alg>
+          1. Assert: _funcNode_ is a `LazyFunctionDeclaration`, a `LazyFunctionExpression`, a `LazyMethod`, a `LazyGetter`, a `LazySetter`, or a `LazyArrowExpression`.
+          1. NOTE: All asserted immediately inner (i.e. not nested within another inner function) lazy functions in `innerLazyFunctions` must be found.
+          1. Let _innerFunctions_ be a new empty List.
+          1. For each _link_ in _funcNode_`.innerLazyFunctions`, do
+              1. Let _linkedNode_ be the node linked to by _link_.
+              1. NOTE: The above step is up to the surface encoding.
+              1. Assert: _linkedNode_ is a `LinkableFunctionDeclaration`, a `LinkableFunctionExpression`, a `LinkableMethod`, a `LinkableGetter`, a `LinkableSetter`, or a `LinkableArrowExpression`.
+              1. Add _linkedNode_ as the last element of _innerFunctions_.
+          1. For each `FunctionDeclaration`, `FunctionExpression`, `Method`, `Getter`, `Setter`, or `ArrowExpression` _candidateInnerFunction_ contained in _funcNode_, do
+              1. If the the path from _funcNode_ to _candidateInnerFunction_ contains no other `FunctionDeclaration`, `FunctionExpression`, `Method`, `Getter`, `Setter`, or `ArrowExpression`, then
+                  1. If _candidateInnerFunction_ is not in _innerFunctions_, then throw a *SyntaxError* exception.
+                  1. Remove _candidateInnerFunction_ from _innerFunctions_.
+          1. If _innerFunctions_ is not empty, then throw a *SyntaxError* exception.
       </emu-alg>
     </emu-clause>
 
@@ -3609,6 +3681,7 @@ interface VariableDeclarator : Node {
           1. Let _delazifiedBody_ be ? EcmaifyFunctionBody(_funcNode_).
           1. Perform ? ValidateAndUpdateFunctionObject(_funcNode_, _functionObject_, _delazifiedBody_, _delazifiedParams_).
           1. If _funcNode_ is not a `LazyGetter`, then perform ? CheckAssertedScope(_contents_`.parameterScope`, _delazifiedParams_).
+          1. Perform ? CheckInnerLazyFunctions(_funcNode_).
           1. Perform ? CheckAssertedScope(_contents_`.bodyScope`, _delazifiedBody_).
           1. If _funcNode_ is a `LazyArrowExpression`, then
               1. Perform ? CheckThisCapture(_contents_`.parameterScope`, _delazifiedParams_).

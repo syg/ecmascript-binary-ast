@@ -534,7 +534,7 @@ interface LazyMethod : Node {
   // `length` property of this method.
   attribute unsigned long length;
   attribute FrozenArray&lt;Directive&gt; directives;
-  attribute FrozenArray&lt;NodeLink&gt; innerFunctions;
+  attribute FrozenArray&lt;NodeLink&gt; directChildFunctions;
   [Lazy] attribute FunctionOrMethodContents contents;
 };
 interface LinkableMethod : Node {
@@ -550,7 +550,7 @@ interface EagerGetter : Node {
 interface LazyGetter : Node {
   attribute PropertyName name;
   attribute FrozenArray&lt;Directive&gt; directives;
-  attribute FrozenArray&lt;NodeLink&gt; innerFunctions;
+  attribute FrozenArray&lt;NodeLink&gt; directChildFunctions;
   [Lazy] attribute GetterContents contents;
 };
 interface LinkableGetter : Node {
@@ -576,7 +576,7 @@ interface LazySetter : Node {
   // `length` property of this setter function.
   attribute unsigned long length;
   attribute FrozenArray&lt;Directive&gt; directives;
-  attribute FrozenArray&lt;NodeLink&gt; innerFunctions;
+  attribute FrozenArray&lt;NodeLink&gt; directChildFunctions;
   [Lazy] attribute SetterContents contents;
 };
 interface LinkableSetter : Node {
@@ -668,7 +668,7 @@ interface LazyArrowExpressionWithFunctionBody : Node {
   // `length` property of this arrow function.
   attribute unsigned long length;
   attribute FrozenArray&lt;Directive&gt; directives;
-  attribute FrozenArray&lt;NodeLink&gt; innerFunctions;
+  attribute FrozenArray&lt;NodeLink&gt; directChildFunctions;
   [Lazy] attribute ArrowExpressionContentsWithFunctionBody contents;
 };
 interface EagerArrowExpressionWithExpression : Node {
@@ -683,7 +683,7 @@ interface LazyArrowExpressionWithExpression : Node {
   attribute boolean isAsync;
   // `length` property of this arrow function.
   attribute unsigned long length;
-  attribute FrozenArray&lt;NodeLink&gt; innerFunctions;
+  attribute FrozenArray&lt;NodeLink&gt; directChildFunctions;
   [Lazy] attribute ArrowExpressionContentsWithExpression contents;
 };
 interface LinkableArrowExpression : Node {
@@ -781,7 +781,7 @@ interface LazyFunctionExpression : Node {
   // `length` property of this function.
   attribute unsigned long length;
   attribute FrozenArray&lt;Directive&gt; directives;
-  attribute FrozenArray&lt;NodeLink&gt; innerFunctions;
+  attribute FrozenArray&lt;NodeLink&gt; directChildFunctions;
   [Lazy] attribute FunctionExpressionContents contents;
 };
 interface LinkableFunctionExpression : Node {
@@ -1049,7 +1049,7 @@ interface LazyFunctionDeclaration : Node {
   // `length` property of this function.
   attribute unsigned long length;
   attribute FrozenArray&lt;Directive&gt; directives;
-  attribute FrozenArray&lt;NodeLink&gt; innerFunctions;
+  attribute FrozenArray&lt;NodeLink&gt; directChildFunctions;
   [Lazy] attribute FunctionOrMethodContents contents;
 };
 interface LinkableFunctionDeclaration : Node {
@@ -3095,13 +3095,13 @@ interface VariableDeclarator : Node {
       </emu-alg>
     </emu-clause>
 
-    <emu-clause id="sec-checkinnerfunctions" aoid="CheckInnerFunctions">
-      <h1>CheckInnerFunctions ( _funcNode_ )</h1>
+    <emu-clause id="sec-checkdirectchildfunctions" aoid="CheckDirectChildFunctions">
+      <h1>CheckDirectChildFunctions ( _funcNode_ )</h1>
       <emu-alg>
           1. Assert: _funcNode_ is a `LazyFunctionDeclaration`, a `LazyFunctionExpression`, a `LazyMethod`, a `LazyGetter`, a `LazySetter`, or a `LazyArrowExpression`.
-          1. NOTE: All asserted immediately inner (i.e. not nested within another inner function) lazy functions in `innerFunctions` must be found.
-          1. Let _innerFunctions_ be a new empty List.
-          1. For each _link_ in _funcNode_`.innerFunctions`, do
+          1. NOTE: All asserted direct child functions (i.e. not nested within another inner function) in _funcNode_`.directChildFunctions` must be found. It is not required that all direct child functions be in _funcNode_`.directChildFunctions`.
+          1. Let _directChildFunctions_ be a new empty List.
+          1. For each _link_ in _funcNode_`.directChildFunctions`, do
               1. Let _linkedNode_ be the node linked to by _link_.
               1. NOTE: The above step is up to the surface encoding.
               1. If _linkedNode_ is a `LinkableFunctionDeclaration`, then set _linkedNode_ to _linkedNode_`.fun`.
@@ -3112,12 +3112,11 @@ interface VariableDeclarator : Node {
               1. Else,
                   1. Assert: _linkedNode_ is a `LinkableArrowExpression`.
                   1. Set _linkedNode_ to _linkedNode_`.arrow`.
-              1. Add _linkedNode_ as the last element of _innerFunctions_.
-          1. For each `FunctionDeclaration`, `FunctionExpression`, `Method`, `Getter`, `Setter`, or `ArrowExpression` _candidateInnerFunction_ contained in _funcNode_, do
-              1. If the the path from _funcNode_ to _candidateInnerFunction_ contains no other `FunctionDeclaration`, `FunctionExpression`, `Method`, `Getter`, `Setter`, or `ArrowExpression`, then
-                  1. If _candidateInnerFunction_ is not in _innerFunctions_, then throw a *SyntaxError* exception.
-                  1. Remove _candidateInnerFunction_ from _innerFunctions_.
-          1. If _innerFunctions_ is not empty, then throw a *SyntaxError* exception.
+              1. Add _linkedNode_ as the last element of _directChildFunctions_.
+          1. For each `FunctionDeclaration`, `FunctionExpression`, `Method`, `Getter`, `Setter`, or `ArrowExpression` _candidateChildFunction_ contained in _funcNode_, do
+              1. If the the path from _funcNode_ to _candidateChildFunction_ contains no other `FunctionDeclaration`, `FunctionExpression`, `Method`, `Getter`, `Setter`, or `ArrowExpression`, then
+                  1. If _candidateChildFunction_ is in _directChildFunctions_, then remove _candidateChildFunction_ from _directChildFunctions_.
+          1. If _directChildFunctions_ is not empty, then throw a *SyntaxError* exception.
       </emu-alg>
     </emu-clause>
 
@@ -3688,7 +3687,7 @@ interface VariableDeclarator : Node {
           1. Let _delazifiedBody_ be ? EcmaifyFunctionBody(_funcNode_).
           1. Perform ? ValidateAndUpdateFunctionObject(_funcNode_, _functionObject_, _delazifiedBody_, _delazifiedParams_).
           1. If _funcNode_ is not a `LazyGetter`, then perform ? CheckAssertedScope(_contents_`.parameterScope`, _delazifiedParams_).
-          1. Perform ? CheckInnerFunctions(_funcNode_).
+          1. Perform ? CheckDirectChildFunctions(_funcNode_).
           1. Perform ? CheckAssertedScope(_contents_`.bodyScope`, _delazifiedBody_).
           1. If _funcNode_ is a `LazyArrowExpression`, then
               1. Perform ? CheckThisCapture(_contents_`.parameterScope`, _delazifiedParams_).
